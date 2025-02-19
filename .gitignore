@@ -1,0 +1,9 @@
+# Ignore everything by default
+*
+
+# Allow Python and Jupyter Notebook files
+!*.py
+!*.ipynb
+
+# Allow hidden .gitignore file itself
+!.gitignore
