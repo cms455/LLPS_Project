@@ -1,0 +1,17 @@
+torch==1.7.1
+numpy==1.19.2
+
+# The following packages are optional and 
+# only needed for specific functionalities:
+# ---------------------------------------- #
+# for plotting in Example 1 and 2:
+matplotlib==3.3.2
+
+# for plotting the confusion matrix in Example 2:
+skearn==0.23.1
+
+# for the Fashion MNIST example
+einops==0.3.0
+
+# for training the PNNs
+pytorch-lightning==0.9.0

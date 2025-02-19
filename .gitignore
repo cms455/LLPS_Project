@@ -4,6 +4,7 @@
 # Allow only Python and Jupyter Notebook files
 !*.py
 !*.ipynb
+!*.txt
 
 # Allow directories (so Git can track files inside)
 !*/
