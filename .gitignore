@@ -1,9 +1,12 @@
 # Ignore everything by default
 *
 
-# Allow Python and Jupyter Notebook files
+# Allow only Python and Jupyter Notebook files
 !*.py
 !*.ipynb
 
-# Allow hidden .gitignore file itself
+# Allow directories (so Git can track files inside)
+!*/
+
+# Ensure .gitignore is always tracked
 !.gitignore
