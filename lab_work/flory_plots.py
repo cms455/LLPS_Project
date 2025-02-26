@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import mpltern
+import hdf5
 #import matplotlib as mpl
 import matplotlib as mpl
 
@@ -326,3 +327,34 @@ def plot_phases_vol_norm(phases):
         plt.ylim([0,1])
         plt.xticks(x, phases_index)
         plt.legend(title="Components", loc="upper right") 
+
+
+def plot_ternary(file_path):
+    with h5py.File(file_path, 'r') as hf:
+        for chi_key in hf.keys():
+            g1 = hf[chi_key]
+
+            # Extract initial points and number of phases
+            points = g1["initial_points"][:]
+            num_phases = np.ravel(g1["evolved_phases"]["num_phases"][:])  # Flatten to 1D
+
+            # Normalize points for ternary plot (ensure they sum to 1)
+            points /= np.sum(points, axis=1, keepdims=True)
+
+            # Create a ternary plot using mpltern
+            fig, ax = plt.subplots(figsize=(6, 6), subplot_kw={'projection': 'ternary'})
+
+            # Plot initial points with color indicating the number of phases
+            scatter = ax.scatter(points[:, 0], points[:, 1], points[:, 2], 
+                                c=num_phases, cmap='viridis', alpha=0.6, s=10)
+
+            # Add colorbar
+            cbar = plt.colorbar(scatter, ax=ax)
+            cbar.set_label("Number of Phases")
+
+            # Set ternary axis labels
+            ax.set_tlabel("Component 1")
+            ax.set_llabel("Component 2")
+            ax.set_rlabel("Component 3")
+            # Title
+            ax.set_title(f"Ternary Plot for {chi_key}")

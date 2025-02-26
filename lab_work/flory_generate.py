@@ -1,9 +1,10 @@
 import numpy as np
 import sys
 sys.path.append('/Users/calvinsmith/dufresne_lab/multicomponent-mixtures-main')
-import multicomp as mm
 from datetime import datetime
 import flory
+import hdf5
+import itertools
 
 def generate_combinations_2(num_components, step_size):
     
@@ -379,3 +380,109 @@ def normal_array(num_rows, num_comps):
     row_sums = random_matrix.sum(axis=1)[:, np.newaxis]  
     normalized_matrix = random_matrix / row_sums
     return normalized_matrix
+
+def generate_simplex_grid(num_comps, num_points):
+    """Generates a properly spaced grid over the num_comps-simplex."""
+    
+    # Choose an integer N for the lattice grid spacing
+    N = int(round(num_points ** (1 / (num_comps - 1))))  # Estimate good spacing
+
+    # Generate integer partitions of N into num_comps parts
+    partitions = itertools.combinations_with_replacement(range(N + 1), num_comps - 1)
+
+    grid = []
+    for partition in partitions:
+        full_partition = [partition[0]] + [partition[i] - partition[i-1] for i in range(1, len(partition))] + [N - partition[-1]]
+        grid.append(np.array(full_partition) / N)  # Normalize to sum to 1
+
+    grid = np.array(grid)
+    
+    # Shuffle and select the required number of points
+    np.random.shuffle(grid)
+    return grid[:num_points]  # Return the requested number of points
+
+
+
+def peak_file(file_path):
+    with h5py.File(file_path, 'r') as hf:
+        for chi_key in hf.keys():
+            print(f"\n📂 {chi_key}:")  # Print the chi_matrix group name
+            
+            g1 = hf[chi_key]
+            
+            # Print initial data
+            print("  ├── initial_points:", g1["initial_points"][:].shape)
+            print("  ├── chi_matrix:", g1["chi_matrix"][:].shape)
+            
+            # Access evolved phases
+            if "evolved_phases" in g1:
+                g2 = g1["evolved_phases"]
+                print("  ├── evolved_phases:")
+                print("      ├── volumes:", g2["volumes"][:].shape)
+                print("      ├── comp_fracs:", g2["comp_fracs"][:].shape)
+                print("      ├── num_phases:", g2["num_phases"][:].shape)
+                
+                # Optionally print a small sample of the data
+                print("      ├── num_phases sample:", g2["num_phases"][:5])  # First 5 values
+def analyze_phase_behavior(folder_path, chi_function, phase_metric_function, plot_title, x_label, y_label):
+    """
+    Generalized function to analyze phase behavior based on arbitrary functions applied to the chi matrix and phase space.
+
+    Parameters:
+    - folder_path (str): Path to the directory containing HDF5 files.
+    - chi_function (function): Function that extracts a single numeric value from the chi matrix.
+    - phase_metric_function (function): Function that computes a single numeric metric from the phase space data.
+    - plot_title (str): Title of the generated plot.
+    - x_label (str): Label for the x-axis (describes the chi metric).
+    - y_label (str): Label for the y-axis (describes the phase metric).
+    """
+    
+    chi_values = []
+    phase_metrics = []
+
+    for file in os.listdir(folder_path):
+        if file.endswith(".h5"):
+            file_name = os.path.join(folder_path, file)
+            try:
+                with h5py.File(file_name, 'r') as hf:
+                    for chi_key in hf.keys():  # Iterate through chi_matrix groups
+                        g1 = hf[chi_key]
+
+                        if "evolved_phases" in g1:
+                            g2 = g1["evolved_phases"]
+                            chi_matrix = g1["chi_matrix"][:]
+                            phase_data = {
+                                "volumes": g2["volumes"][:],
+                                "num_phases": g2["num_phases"][:],
+                            }
+
+                            # Apply user-defined functions
+                            chi_value = chi_function(chi_matrix)
+                            phase_metric = phase_metric_function(phase_data)
+
+                            # Store values
+                            chi_values.append(chi_value)
+                            phase_metrics.append(phase_metric)
+            except OSError as e:
+                print(f"❌ Corrupted file: {file} - {e}")
+
+    # Convert lists to numpy arrays for plotting
+    chi_values = np.array(chi_values)
+    phase_metrics = np.array(phase_metrics)
+
+    # Sort data for better visualization
+    sorted_indices = np.argsort(chi_values)
+    chi_values = chi_values[sorted_indices]
+    phase_metrics = phase_metrics[sorted_indices]
+
+    # Plot results
+    plt.figure(figsize=(8, 5))
+    plt.scatter(chi_values, phase_metrics, color='blue', alpha=0.75, label="Data points")
+    plt.plot(chi_values, phase_metrics, linestyle='dashed', color='red', alpha=0.5, label="Trend")
+
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(plot_title)
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.show()

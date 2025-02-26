@@ -6,6 +6,7 @@ import pickle
 import random
 from datetime import datetime 
 import h5py
+import os 
 
 from tqdm import tqdm
 
@@ -26,11 +27,13 @@ import importlib
 
 from scipy import cluster, spatial
 
+
 from scipy.optimize import minimize
 from scipy.optimize import basinhopping
 from scipy.optimize import differential_evolution
+sys.path.append('/Users/labuser/Documents/git/LLPS_Project/lab_work')
 
-sys.path.append('/Users/calvinsmith/dufresne_lab/lab_work/llps_classification')
+
 import flory_generate as gen
 import flory_plots as plots
 
@@ -718,7 +721,7 @@ class FloryClassifier:
 
 
 
-    def generate_grid_data_N_Dim(self, num_chi_matrix = 1, num_grid_points = 10, plot_flag = False):
+    def generate_grid_data_N_Dim(self, num_chi_matrix = 1, num_grid_points = 10,folder_path = "/Users/calvinsmith/dufresne_lab/phase_space_search/Saved_Phase_Data/",plot_flag = False):
         num_comps = self.num_comps
         chi_strength = self.chi_strength
 
@@ -743,10 +746,15 @@ class FloryClassifier:
         data = PhaseData(chi_matrix, points, evolved_points)
 
         idx_time =  idx = datetime.now().strftime("%Y%m%d_%H%M%S")
-        folder_path = "/Users/calvinsmith/dufresne_lab/phase_space_search/Saved_Phase_Data/"
-        file_path = f"{folder_path}grid_phase_data_v2_{idx_time}.h5"
+        
+        chi_str = str(chi_strength).replace(".", "_")
+        file_path = os.path.join(folder_path, f"grid_phase_data_v2_{idx_time}_chi_{chi_str}.h5")
         hf = h5py.File(file_path, 'w')
 
+        g0 = hf.create_group("Params")
+        g0.create_dataset("Num_Comps", data = num_comps)
+        g0.create_dataset("Num_Chi_Matrix", data = num_chi_matrix)
+        g0.create_dataset("Chi Strength", data = chi_strength)
         for i in range(num_chi_matrix):
             g1 = hf.create_group(f"chi_matrix_{i}")
             g2 = g1.create_group("evolved_phases")
@@ -788,9 +796,6 @@ class FloryClassifier:
 
         hf.close()
         if plot_flag:
-            folder_path = "/Users/calvinsmith/dufresne_lab/phase_space_search/Saved_Phase_Data/"
-            file_path = f"{folder_path}grid_phase_data_v2_{idx_time}.h5"
-
             with h5py.File(file_path, 'r') as hf:
                 for chi_key in hf.keys():
                     print(f"\n📂 {chi_key}:")  
@@ -806,4 +811,92 @@ class FloryClassifier:
                         print("      ├── comp_fracs:", g2["comp_fracs"][:].shape)
                         print("      ├── num_phases:", g2["num_phases"][:].shape)
                         print("      ├── num_phases sample:", g2["num_phases"][:5]) 
+        return file_path
 
+
+    def generate_random_data_N_Dim_v2(self, num_chi_matrix=1, num_points=10, plot_flag=False):
+        num_comps = self.num_comps
+        chi_strength = self.chi_strength
+
+        # Create chi_set for multiple chi matrices
+        chi_set = np.empty(num_chi_matrix, dtype=object)
+        for j in range(num_chi_matrix):
+            chi_set[j] = gen.random_interaction_matrix(num_comps, chi_strength)
+
+        # Generate random points (normalized)
+        points = np.random.rand(num_points, num_comps)
+        points /= points.sum(axis=1, keepdims=True)
+
+        # Evolve points under each chi matrix
+        evolved_points = np.empty((num_chi_matrix, num_points), dtype=object)
+        for i in range(num_chi_matrix):
+            for j in range(num_points):
+                evolved_points[i, j] = flory.find_coexisting_phases(num_comps, chi_set[i], points[j, :], progress=False)
+
+        # Store results
+        idx_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        folder_path = "/Users/calvinsmith/dufresne_lab/phase_space_search/Saved_Phase_Data/"
+        file_path = f"{folder_path}random_phase_data_v2_{idx_time}.h5"
+
+        hf = h5py.File(file_path, 'w')
+
+        # Create groups
+        for i in range(num_chi_matrix):
+            g1 = hf.create_group(f"chi_matrix_{i}")
+            g2 = g1.create_group("evolved_phases")
+
+        # Fill volume fractions
+        volumes = np.zeros((num_chi_matrix, num_points, num_comps))
+        for i in range(num_chi_matrix):
+            for j in range(num_points):
+                phase = evolved_points[i, j]
+                phase_vol = phase.volumes
+                volumes[i, j, 0:len(phase_vol)] = phase_vol
+
+        # Compute phase counts
+        bool_phases_map = (volumes != 0).astype(float)
+        num_phases = np.sum(bool_phases_map, axis=-1)
+
+        # Compute max phases dynamically
+        max_num_phases = np.max(num_phases, axis=1)
+        max_phases = int(np.max(max_num_phases))
+
+        # Fill component fractions
+        phi_comps = np.zeros((num_chi_matrix, num_points, max_phases, num_comps))
+        for i in range(num_chi_matrix):
+            for j in range(num_points):
+                phase = evolved_points[i, j]
+                phase_fractions = phase.fractions
+                pf_shape = phase_fractions.shape
+                phi_comps[i, j, 0:pf_shape[0], 0:pf_shape[1]] = phase_fractions
+
+        # Save data to HDF5 file
+        for i in range(num_chi_matrix):
+            g1 = hf[f"chi_matrix_{i}"]
+            g1.create_dataset("initial_points", data=points)
+            g1.create_dataset("chi_matrix", data=chi_set[i])
+            g2 = g1["evolved_phases"]
+            g2.create_dataset("volumes", data=volumes[i])
+            g2.create_dataset("comp_fracs", data=phi_comps[i])
+            g2.create_dataset("num_phases", data=num_phases[i])
+
+        hf.close()
+
+        # Plot file structure if requested
+        if plot_flag:
+            with h5py.File(file_path, 'r') as hf:
+                for chi_key in hf.keys():
+                    print(f"\n📂 {chi_key}:")  
+                    g1 = hf[chi_key]
+                    print("  ├── initial_points:", g1["initial_points"][:].shape)
+                    print("  ├── chi_matrix:", g1["chi_matrix"][:].shape)
+
+                    if "evolved_phases" in g1:
+                        g2 = g1["evolved_phases"]
+                        print("  ├── evolved_phases:")
+                        print("      ├── volumes:", g2["volumes"][:].shape)
+                        print("      ├── comp_fracs:", g2["comp_fracs"][:].shape)
+                        print("      ├── num_phases:", g2["num_phases"][:].shape)
+                        print("      ├── num_phases sample:", g2["num_phases"][:5])
+
+        return file_path
