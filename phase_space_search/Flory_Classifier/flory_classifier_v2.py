@@ -31,8 +31,6 @@ from scipy import cluster, spatial
 from scipy.optimize import minimize
 from scipy.optimize import basinhopping
 from scipy.optimize import differential_evolution
-sys.path.append('/Users/labuser/Documents/git/LLPS_Project/lab_work')
-
 
 import flory_generate as gen
 import flory_plots as plots
@@ -40,7 +38,6 @@ import flory_plots as plots
 importlib.reload(gen)
 importlib.reload(plots)
 
-sys.path.append('/Users/calvinsmith/dufresne_lab/phase_space_search')
 import flory_phase_data
 from flory_phase_data import PhaseData
 

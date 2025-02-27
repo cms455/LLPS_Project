@@ -425,6 +425,8 @@ def peak_file(file_path):
                 
                 # Optionally print a small sample of the data
                 print("      ├── num_phases sample:", g2["num_phases"][:5])  # First 5 values
+
+                
 def analyze_phase_behavior(folder_path, chi_function, phase_metric_function, plot_title, x_label, y_label):
     """
     Generalized function to analyze phase behavior based on arbitrary functions applied to the chi matrix and phase space.
